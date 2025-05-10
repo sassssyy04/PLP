@@ -1,0 +1,19 @@
+<div class="col">
+    <div class="card h-100 shadow-sm">
+      <div class="card-header fw-bold">{{ mod.module_name }}</div>
+      <div class="card-body">
+        {{ mod.description|safe }}
+        <hr>
+        <div class="d-flex flex-column gap-1 mb-2">
+          {% for r in mod.resources %}
+            <a href="{{ r }}" target="_blank">{{ r }}</a>
+          {% endfor %}
+        </div>
+        <!-- self-contained interactive snippet -->
+        <div style="min-height:260px">
+          {{ mod.interactive_html|safe }}
+        </div>
+      </div>
+    </div>
+  </div>
+  
