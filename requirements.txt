@@ -1,0 +1,8 @@
+flask>=3.0
+python-dotenv
+openai>=1.14
+transformers
+peft
+torch
+scikit-learn
+requests
