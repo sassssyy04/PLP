@@ -22,7 +22,7 @@ _Group 14: A0291211U Sasipriya Ayyanan, A0201811Y Poh Yong Quan, A0098110M Chua 
 ---
 ## 🏗️ System Architecture
 
-![CodeSensei System Architecture](./images/Screenshot 2025-05-12 133231.png)
+![CodeSensei System Architecture](./images/architecture.png)
 
 This diagram illustrates the flow from user query to intelligent intent classification, routing through the appropriate model, storing results, and generating dynamic interactive modules.
 
