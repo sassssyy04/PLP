@@ -16,7 +16,7 @@ DB_PATH = "user_queries.db"
 # -------------------------------------------------
 #  top-of-file constants  (add or replace)
 # -------------------------------------------------
-PEFT_PATH = "./phi2-finetuned"        # <-- YOUR LoRA
+PEFT_PATH = "./phi2-finetuned/checkpoint-240500"        # <-- YOUR LoRA
 DEVICE    = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 openai.api_key = OPENAI_API_KEY
@@ -27,12 +27,13 @@ app.secret_key = os.getenv("FLASK_SECRET", "dev")
 
 # ---------- helpers ----------
 def safe_parse_json(raw: str):
+    if not raw.strip():
+        raise ValueError("safe_parse_json received empty string.")
     try:
         return json.loads(raw)
-    except json.JSONDecodeError:
-        m = re.search(r'(\[.*\])', raw, re.DOTALL)
-        if m:
-            return json.loads(m.group(1))
+    except json.JSONDecodeError as e:
+        print("JSONDecodeError:", e)
+        print("Raw content:", raw)
         raise
 
 # ----- models cached in memory on first request -----
@@ -104,11 +105,17 @@ def generate_with_peft(prompt):
 
 def generate_with_openai(q):
     r = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-3.5-turbo",
         messages=[{"role": "user", "content": q}],
         temperature=0.3, max_tokens=180,
     )
-    return r.choices[0].message.content.strip()
+    
+    r = r.choices[0].message.content.strip()
+
+    if not r:
+        raise ValueError("OpenAI API returned empty message content.")
+
+    return safe_parse_json(r)
 
 def log_to_db(query, response):
     conn = sqlite3.connect(DB_PATH)
@@ -138,42 +145,35 @@ def serper_snippets(topics):
             res = r.json().get("organic", [])
             if res: out.append(res[0].get("snippet", ""))
     return out
-
 def modules_interactive(query, explanation):
     prompt = (
-        f"""I asked: “{query}”. You answered:\n\n{explanation}\n\n"
+        f"""I asked: “{query}”. You answered:\n\n{explanation}\n\n"""
         "Now generate a JSON array of modules. Each module must have:\n"
         "  • module_name: string\n"
-        "  • description: string \n"
-        "  • resources: array of HTML links that redirects to actual references available online.\n"
-        "  • interactive_html: Generate a self-contained HTML snippet that is visually appealing and contains highly interactive elements—MCQs with radio buttons and immediate feedback, drag-and-drop sorting, sliders, or code editors."
-        "### Rules
-                1. `interactive_html` **must include at least one of each `<script>` or
-                `<style>` tag and visible HTML elements** (e.g. buttons, radio inputs,
-                draggable items).  
-                2. Do **NOT** output placeholders like
-                `"Interactive content for …", "names of buttons but no interactability"'
-                3. No markdown fences, no prose outside the array.
-                4. Valid UTF-8, strictly JSON.
-                5. The users must always receive feedback (validation for their input, i.e correct/incorrext) for their selections. 
-                6. All MCQs, drag-and-drop sorting, slider and code editors must be functional.
-'''"
-        "Ensure the following UI and interactivity guidelines are met:\n"
-        "    1. Home Screen Structure: Use a modern landing view with a header, module cards arranged in a responsive grid, each card showing module_name, a color accent bar, and a brief description.\n"
-        "    2. Color & Theme: Apply a vibrant color palette or Bootstrap theme (e.g. "Cerulean"), with distinct primary and accent colors per module. Include hover and active state transitions.\n"
-        "    3. Tabbed Interface: Each module card expands into a tabbed panel on click, presenting multiple sub-tabs (e.g., Overview, Exercise, Resources).\n"
-        "    4. Interactive Components: Within each tab, include interactive elements—MCQs with radio buttons and immediate feedback, drag-and-drop sorting, sliders, or code editors. Use tooltips, hints, and animations (e.g. fade-in feedback).\n"
-        "    5. Responsive & Accessible: Ensure components are mobile-first, use ARIA roles, and keyboard navigation.\n"
-        "    6. Self-Contained: All HTML, CSS (inline or <style> block), and JS must be bundled so snippet can be injected directly into a webpage. Avoid external dependencies beyond Bootstrap or embedded CSS/JS.\n"
-        "    7. Feedback Mechanisms: Provide clear correct/incorrect messages, hints on wrong answers, and celebration animations on completion.\n"
-        "Output *only* the raw JSON array—do not include any additional text or markdown."""
+        "  • description: string\n"
+        "  • resources: array of HTML links\n"
+        "  • interactive_html: self-contained HTML snippet with interactive MCQs, drag-and-drop, etc.\n"
+        "### Rules...\n"  # (trimmed for brevity)
+        "Output *only* the raw JSON array—no extra text or markdown."
     )
+
     r = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role":"user","content": prompt}],
-        temperature=0, max_tokens=700
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0,
+        max_tokens=1500  # ← optionally increase this
     )
-    return safe_parse_json(r.choices[0].message.content)
+
+    content = r.choices[0].message.content.strip()
+    # Strip markdown code block if present
+    if content.startswith("```json") and content.endswith("```"):
+        content = content[len("```json"): -len("```")].strip()
+
+    if not content.startswith("["):
+        raise ValueError(f"Invalid or non-JSON response from OpenAI: {content}")
+
+    return safe_parse_json(content)
+
 
 # ---------- routes ----------
 @app.route("/", methods=["GET", "POST"])
@@ -189,6 +189,10 @@ def index():
         intent   = classify_intent(query)
         response = generate_with_peft(f"For the following error the user has received, think carefully and provide a fix.{query}") if intent in {"Code example","Error help"} \
                    else generate_with_openai(query)
+        # Only keep the text after '### Response:'
+        if "### Response:" in response:
+            response = response.split("### Response:")[1].strip()
+
         log_to_db(query, response)
 
         topics    = latest_topics()
