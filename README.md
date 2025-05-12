@@ -87,14 +87,8 @@ pip install -r requirements.txt
 Create a `.env` file in the project root and add:
 ```dotenv
 OPENAI_API_KEY=<your_openai_api_key>
-# Add other variables if needed, e.g.:
-# MODEL_PATH=<path_to_model_files>
+SERPER_API_KEY =<your_serper_api_key>
 ```
-
-### 5. Download Model Files
-Ensure you have the required model files in the correct directories:
-- LoRA adapters: `models/lora/`
-- Tokenizer configs: `models/tokenizer/`
 
 ### 6. Run the Application
 ```bash
