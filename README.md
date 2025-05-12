@@ -1,6 +1,6 @@
 # 💡 CodeSensei: Code Assistance Chatbot Incorporating Intelligent Query Classification
 
-_Group 14: A0291211U Sasipriya Ayyanan, A0201811Y Poh Yong Quan, A0098110M Chua Khiong Jian, A0285978Y Tong Chang_
+_Group 14: CHUA KHIONG JIAN, POH YONG QUAN, SASIPRIYA AYYANAN, TONG CHANG_
 
 ---
 
